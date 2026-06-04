@@ -7,12 +7,14 @@
 name: Boutique CI Pipeline
 
 # -------------------------------------------------------
-# TRIGGER: Manual only
+# TRIGGER: Automatic on push to main + Manual trigger
 # -------------------------------------------------------
-# workflow_dispatch means this pipeline only runs when you
-# manually click "Run workflow" in the GitHub Actions UI.
-# It will NOT trigger automatically on push or pull request.
+# Automatically triggers on push to main branch,
+# and can also be manually triggered via GitHub Actions UI.
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 # -------------------------------------------------------
