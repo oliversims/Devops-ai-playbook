@@ -38,22 +38,9 @@ spec:
     namespace: boutique  # Deploy all resources into the "boutique" namespace
 
   # -------------------------------------------------------
-  # SYNC POLICY: How ArgoCD handles synchronization
+  # SYNC POLICY: Automated GitOps sync
   # -------------------------------------------------------
-  syncPolicy: {}  # Empty = MANUAL sync only.
-                  # ArgoCD will DETECT drift (differences between Git and the cluster)
-                  # but will NOT automatically apply changes.
-                  # You must click "Sync" in the ArgoCD UI or run:
-                  # argocd app sync boutique
-
-  # -------------------------------------------------------
-  # AUTOMATED SYNC (commented out — enable for full GitOps)
-  # -------------------------------------------------------
-  # Uncomment this block to enable fully automated GitOps:
-  # syncPolicy:
-  #   automated:
-  #     prune: true      # Automatically DELETE resources that were removed from Git.
-  #                      # Without this, deleted manifests leave orphaned resources in the cluster.
-  #     selfHeal: true   # Automatically REVERT any manual changes made directly to the cluster.
-  #                      # If someone runs "kubectl edit" and changes something, ArgoCD will
-  #                      # restore it back to what Git says it should be.
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

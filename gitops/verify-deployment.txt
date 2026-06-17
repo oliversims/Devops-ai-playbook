@@ -1,0 +1,10 @@
+# Verify boutique app deployment
+# Setup: aws eks update-kubeconfig --region us-east-1 --name eks-cluster
+
+kubectl get application boutique -n argocd -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+
+kubectl get pods -n boutique
+kubectl get deployments -n boutique
+kubectl get svc -n boutique
+
+kubectl get pods -n boutique -l app=boutique-postgres
