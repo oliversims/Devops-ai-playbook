@@ -1,73 +1,123 @@
+# -------------------------------------------------------
+# JOB: Restore the PostgreSQL database from a dump file
+# -------------------------------------------------------
+# A Kubernetes Job runs a pod ONCE to completion (unlike a Deployment
+# which runs continuously). This is perfect for one-time tasks like
+# database restores, migrations, or batch processing.
+# Once the job completes successfully, the pod stops running.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: boutique-db-restore
-  namespace: boutique
+  name: boutique-db-restore  # Name of this Job
+  namespace: boutique         # Must be in the same namespace as the PostgreSQL pod
+
 spec:
-  backoffLimit: 3
+  backoffLimit: 3  # If the job fails, retry up to 3 times before giving up
+
   template:
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: OnFailure  # Restart the container if it fails, but not if it succeeds
+
       containers:
         - name: restore
-          image: postgres:15-alpine
+          image: postgres:15-alpine  # Lightweight PostgreSQL 15 image — only used for its psql CLI tools
+
+          # -------------------------------------------------------
+          # COMMAND: The shell script that runs inside the container
+          # -------------------------------------------------------
           command:
             - sh
             - -c
             - |
+              # Wait until PostgreSQL is ready to accept connections.
+              # pg_isready checks if the database is up.
+              # The loop retries every 2 seconds until it gets a successful response.
+              # This prevents the restore from failing because it started before Postgres was ready.
               echo "Waiting for Postgres..."
               until pg_isready -h boutique-postgres -U postgres; do
                 sleep 2
               done
 
+              # Restore the full database dump file into PostgreSQL.
+              # boutique_full.sql is mounted from a ConfigMap (see volumes below).
+              # This recreates all databases and their existing data from the dump.
               echo "Restoring dump..."
               psql -h boutique-postgres -U postgres -f /dump/boutique_full.sql
 
+              # -------------------------------------------------------
+              # Create the auth_db schema (users table)
+              # -------------------------------------------------------
+              # Connects to auth_db and creates the users table if it doesn't exist.
+              # This ensures the Auth service has the correct table structure.
               echo "Creating auth_db schema..."
               psql -h boutique-postgres -U postgres -d auth_db -c "
               CREATE TABLE IF NOT EXISTS users (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                first_name VARCHAR(100),
-                last_name VARCHAR(100),
-                role VARCHAR(50) DEFAULT 'customer',
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
+                id            UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Auto-generated unique ID
+                email         VARCHAR(255) UNIQUE NOT NULL,               -- Unique login email
+                password_hash VARCHAR(255) NOT NULL,                      -- Hashed password (never store plain text)
+                first_name    VARCHAR(100),                               -- Optional first name
+                last_name     VARCHAR(100),                               -- Optional last name
+                role          VARCHAR(50) DEFAULT 'customer',             -- User role, defaults to customer
+                created_at    TIMESTAMP DEFAULT NOW(),                    -- Auto-set creation timestamp
+                updated_at    TIMESTAMP DEFAULT NOW()                     -- Auto-set last update timestamp
               );"
 
+              # -------------------------------------------------------
+              # Create the orders_db schema (orders + order_items tables)
+              # -------------------------------------------------------
+              # Connects to orders_db and creates two related tables.
+              # order_items references orders via a foreign key — meaning
+              # each item belongs to a specific order.
               echo "Creating orders_db schema..."
               psql -h boutique-postgres -U postgres -d orders_db -c "
               CREATE TABLE IF NOT EXISTS orders (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id VARCHAR(255) NOT NULL,
-                total_amount DECIMAL(10,2) NOT NULL,
-                status VARCHAR(50) DEFAULT 'pending',
-                shipping_address JSONB,
-                payment_status VARCHAR(50) DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
+                id               UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Unique order ID
+                user_id          VARCHAR(255) NOT NULL,                      -- ID of the user who placed the order
+                total_amount     DECIMAL(10,2) NOT NULL,                     -- Total price (e.g., 99.99)
+                status           VARCHAR(50) DEFAULT 'pending',              -- Order status (pending/shipped/delivered)
+                shipping_address JSONB,                                      -- Full address stored as flexible JSON
+                payment_status   VARCHAR(50) DEFAULT 'pending',              -- Payment status (pending/paid/failed)
+                created_at       TIMESTAMP DEFAULT NOW(),
+                updated_at       TIMESTAMP DEFAULT NOW()
               );
               CREATE TABLE IF NOT EXISTS order_items (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
-                product_id VARCHAR(255) NOT NULL,
-                quantity INTEGER NOT NULL,
-                price DECIMAL(10,2) NOT NULL,
+                id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                order_id   UUID REFERENCES orders(id) ON DELETE CASCADE, -- Links to parent order.
+                                                                          -- ON DELETE CASCADE means if the order
+                                                                          -- is deleted, its items are deleted too
+                product_id VARCHAR(255) NOT NULL,                         -- ID of the product ordered
+                quantity   INTEGER NOT NULL,                              -- How many units were ordered
+                price      DECIMAL(10,2) NOT NULL,                        -- Price per unit at time of order
                 created_at TIMESTAMP DEFAULT NOW()
               );"
 
               echo "Restore completed."
+
+          # -------------------------------------------------------
+          # ENVIRONMENT VARIABLES: Inject the database password securely
+          # -------------------------------------------------------
           env:
+            # PGPASSWORD is a special PostgreSQL environment variable.
+            # When set, psql uses it automatically — no password prompt needed.
+            # Pulled from a Kubernetes Secret to keep credentials out of the manifest.
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: POSTGRES_PASSWORD
+                  name: boutique-secrets  # The Kubernetes Secret object
+                  key: POSTGRES_PASSWORD  # The specific key inside that secret
+
+          # -------------------------------------------------------
+          # VOLUME MOUNTS: Make the dump file accessible inside the container
+          # -------------------------------------------------------
           volumeMounts:
             - name: dump
-              mountPath: /dump
+              mountPath: /dump  # The SQL dump file will be available at /dump/boutique_full.sql
+
+      # -------------------------------------------------------
+      # VOLUMES: Define where the dump file comes from
+      # -------------------------------------------------------
       volumes:
         - name: dump
           configMap:
-            name: boutique-db-dump
+            name: boutique-db-dump  # The ConfigMap that contains the SQL dump file.
+                                    # Each key in the ConfigMap becomes a file inside /dump/

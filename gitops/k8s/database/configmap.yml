@@ -1,26 +1,53 @@
+# -------------------------------------------------------
+# CONFIGMAP: Store PostgreSQL initialization SQL scripts
+# -------------------------------------------------------
+# A ConfigMap is a Kubernetes object used to store non-sensitive
+# configuration data as key-value pairs.
+# In this case, it stores SQL scripts that will be automatically
+# executed by PostgreSQL when the database container first starts up.
+# This is how you pre-create databases, tables, and seed data
+# without manually connecting to the database after deployment.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: postgres-init-scripts
-  namespace: boutique
-data:
-  data:
-  10-create-databases.sql: |
-    CREATE DATABASE auth_db;
-    CREATE DATABASE products_db;
-    CREATE DATABASE orders_db;
-    CREATE DATABASE users_db;
+  name: postgres-init-scripts  # Name used to reference this ConfigMap in the PostgreSQL deployment
+  namespace: boutique           # Must be in the same namespace as the PostgreSQL pod
 
+# -------------------------------------------------------
+# DATA: The actual SQL scripts stored as files
+# -------------------------------------------------------
+# Each key below becomes a FILE inside the container when mounted.
+# PostgreSQL's official Docker image automatically runs any .sql files
+# it finds in the /docker-entrypoint-initdb.d/ directory on first startup.
+# The numeric prefixes (10-, 20-) control the ORDER of execution.
+data:
+  # SCRIPT 1: Create all the databases (runs first because of "10-" prefix)
+  # Each microservice gets its own isolated database — this is best practice
+  # for microservices so they don't share or interfere with each other's data.
+  10-create-databases.sql: |
+    CREATE DATABASE auth_db;      -- Database for the Auth service
+    CREATE DATABASE products_db;  -- Database for the Product service
+    CREATE DATABASE orders_db;    -- Database for the Orders service
+    CREATE DATABASE users_db;     -- Database for the User service
+
+  # SCRIPT 2: Create tables inside the databases (runs second because of "20-" prefix)
+  # "\c auth_db" is a psql command that means "connect to auth_db"
+  # Must run AFTER script 10 because the databases need to exist first.
   20-init-schema.sql: |
-    -- Example: Create tables in auth_db
+    -- Connect to auth_db and create the users table
     \c auth_db
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100),
-      email VARCHAR(100) UNIQUE
+    CREATE TABLE IF NOT EXISTS users (  -- "IF NOT EXISTS" prevents errors if table already exists
+      id    SERIAL PRIMARY KEY,         -- Auto-incrementing unique ID for each user
+      name  VARCHAR(100),               -- User's name (max 100 characters)
+      email VARCHAR(100) UNIQUE         -- User's email — UNIQUE prevents duplicate accounts
     );
 
+  # SCRIPT 3: Insert sample/demo data into the database
+  # Useful for development and testing so you have real data to work with immediately.
+  # In production you would typically remove or skip this script.
   quick-seed.sql: |
-    -- Seed data for demo
+    -- Connect to auth_db and insert two sample users
     \c auth_db
-    INSERT INTO users(name, email) VALUES('Alice','alice@example.com'),('Bob','bob@example.com');
+    INSERT INTO users(name, email) VALUES
+      ('Alice', 'alice@example.com'),  -- Sample user 1
+      ('Bob',   'bob@example.com');    -- Sample user 2

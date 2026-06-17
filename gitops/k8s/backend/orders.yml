@@ -1,3 +1,12 @@
+# -------------------------------------------------------
+# DEPLOYMENT: Run the Orders service
+# -------------------------------------------------------
+# Note: This is DIFFERENT from the "order-service" we saw earlier.
+# This project has two separate services related to orders:
+# - "order-service" (port 3004): Handles order PROCESSING (creating orders,
+#    verifying users and products before placing an order)
+# - "orders" (port 3005): Handles order MANAGEMENT (retrieving orders,
+#    order history, order status updates)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,42 +16,61 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: orders
+      app: orders  # Manages pods with this label
   template:
     metadata:
       labels:
-        app: orders
+        app: orders  # Label applied to every pod created by this Deployment
     spec:
       containers:
         - name: orders
+          # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
           image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/orders:1ebec3729cd10fe1eeac6f0858fba58e2da07956
+
           ports:
-            - containerPort: 3005
+            - containerPort: 3005  # The port the Orders service listens on inside the container
+
           env:
             - name: NODE_ENV
-              value: development
+              value: development  # Tells the Node.js app it's running in development mode
+
             - name: PORT
-              value: "3005"
+              value: "3005"       # The port this app binds to (matches containerPort above)
+
+            # Database connection string — pulled from Kubernetes Secret.
+            # Notice it uses the SAME ORDERS_DB_URL as order-service.
+            # Both services share the same orders_db database but
+            # handle different responsibilities.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: ORDERS_DB_URL
+                  name: boutique-secrets  # The Kubernetes Secret object
+                  key: ORDERS_DB_URL      # postgresql://postgres:postgres123@boutique-postgres:5432/orders_db
+
+            # The Orders service calls the Product service to fetch
+            # product details (name, image, price) when displaying order history.
             - name: PRODUCTS_SERVICE_URL
               value: "http://product-service:3003"
 
 ---
 
+# -------------------------------------------------------
+# SERVICE: Expose the Orders service inside the cluster
+# -------------------------------------------------------
+# Gives the Orders service a stable internal DNS name so
+# the Gateway can route order management requests to it.
 apiVersion: v1
 kind: Service
 metadata:
-  name: orders
+  name: orders       # Other pods reach this service using "http://orders:3005"
   namespace: boutique
 spec:
   selector:
-    app: orders
+    app: orders      # Forward traffic to pods with this label
+
   ports:
     - protocol: TCP
-      port: 3005
-      targetPort: 3005
-  type: ClusterIP
+      port: 3005        # The port other services use to reach the Orders service
+      targetPort: 3005  # Forwards traffic to port 3005 on the pod (matches containerPort)
+
+  type: ClusterIP  # Internal only — only accessible inside the cluster

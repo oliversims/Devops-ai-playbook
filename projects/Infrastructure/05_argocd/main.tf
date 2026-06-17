@@ -1,27 +1,21 @@
+# GitOps (ArgoCD) and observability (Prometheus/Grafana) installed via Helm.
+# Requires a running EKS cluster from 04_eks (S3 remote state).
+
+# Isolated namespace for all ArgoCD components.
 resource "kubernetes_namespace_v1" "argocd" {
   metadata {
     name = "argocd"
   }
 }
 
+# Isolated namespace for Prometheus, Grafana, and Alertmanager.
 resource "kubernetes_namespace_v1" "monitoring" {
   metadata {
     name = "monitoring"
   }
 }
 
-terraform {
-  required_providers {
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-    }
-  }
-}
-
-
+# Installs ArgoCD — watches Git and syncs manifests to the cluster.
 resource "helm_release" "argocd" {
   name       = "argocd"
   namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
@@ -35,7 +29,7 @@ resource "helm_release" "argocd" {
     yamlencode({
       server = {
         service = {
-          type = "ClusterIP" 
+          type = "ClusterIP"
         }
       }
       configs = {
@@ -45,8 +39,11 @@ resource "helm_release" "argocd" {
       }
     })
   ]
+
+  depends_on = [data.terraform_remote_state.eks]
 }
 
+# Installs Prometheus, Grafana, and Alertmanager for cluster monitoring.
 resource "helm_release" "monitoring" {
   name       = "kube-prometheus-stack"
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
@@ -81,6 +78,7 @@ resource "helm_release" "monitoring" {
   ]
 
   depends_on = [
-    kubernetes_namespace_v1.monitoring
+    kubernetes_namespace_v1.monitoring,
+    data.terraform_remote_state.eks
   ]
 }

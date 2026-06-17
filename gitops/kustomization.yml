@@ -1,27 +1,69 @@
+# -------------------------------------------------------
+# KUSTOMIZATION: The entry point for deploying the entire app
+# -------------------------------------------------------
+# Kustomize is a built-in Kubernetes tool that lets you manage
+# and organize all your K8s manifests in one place without
+# using Helm or templates. This file is the "table of contents"
+# that tells Kustomize (and ArgoCD) exactly what to deploy
+# and in what order. Running "kubectl apply -k ." in this
+# directory will deploy everything listed here at once.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# Apply the "boutique" namespace to ALL resources listed below.
+# This saves you from having to write "namespace: boutique"
+# in every single manifest file individually.
 namespace: boutique
 
+# -------------------------------------------------------
+# RESOURCES: All the manifest files to deploy
+# -------------------------------------------------------
+# Kustomize will read and apply all these files together
+# as a single deployment. Order matters — namespace and
+# secrets are listed first because other resources depend on them.
 resources:
-  - namespace.yml
-  - secrets.yml
-  - k8s/database/statefulset.yml
-  - k8s/database/service.yml
-  - k8s/backend/gateway.yml
-  - k8s/backend/service-monitor.yml
-  - k8s/backend/auth.yml
-  - k8s/backend/product-service.yml
-  - k8s/backend/order-service.yml
-  - k8s/backend/orders.yml
-  - k8s/backend/user-service.yml
-  - k8s/frontend/deployment.yml
-  - k8s/grafana-dashboard.yml
+  - namespace.yml                      # Creates the "boutique" namespace first
+  - secrets.yml                        # Creates the Kubernetes Secret (DB credentials)
 
+  # Database layer — must come before backend services
+  # because the services need the database to be ready
+  - k8s/database/statefulset.yml       # PostgreSQL StatefulSet (the database pod)
+  - k8s/database/service.yml           # Headless Service for PostgreSQL (boutique-postgres)
+
+  # Backend microservices
+  - k8s/backend/gateway.yml            # API Gateway — the entry point for all backend traffic
+  - k8s/backend/service-monitor.yml    # Prometheus ServiceMonitor — scrapes metrics from services
+  - k8s/backend/auth.yml               # Auth service — handles login and authentication
+  - k8s/backend/product-service.yml    # Product service — manages product catalog
+  - k8s/backend/order-service.yml      # Order service — handles order processing
+  - k8s/backend/orders.yml             # Orders resource definitions
+  - k8s/backend/user-service.yml       # User service — manages user profiles
+
+  # Frontend
+  - k8s/frontend/deployment.yml        # Frontend web app deployment
+
+  # Observability
+  - k8s/grafana-dashboard.yml          # Grafana dashboard config for monitoring
+
+# -------------------------------------------------------
+# CONFIGMAP GENERATOR: Automatically create a ConfigMap from a file
+# -------------------------------------------------------
+# Instead of manually writing a ConfigMap YAML, Kustomize reads
+# the actual SQL file and creates the ConfigMap automatically.
+# The SQL dump file will be available inside the pod as a mounted file.
 configMapGenerator:
-  - name: boutique-db-dump
+  - name: boutique-db-dump             # Name of the ConfigMap that will be created
     files:
-      - k8s/database/boutique_full.sql
+      - k8s/database/boutique_full.sql # The SQL dump file — becomes a file inside the ConfigMap
+                                       # Referenced by the restore Job as a mounted volume
 
+# -------------------------------------------------------
+# GENERATOR OPTIONS: Control how generated resources are named
+# -------------------------------------------------------
 generatorOptions:
-  disableNameSuffixHash: true
+  disableNameSuffixHash: true  # By default, Kustomize adds a random hash suffix to
+                                # generated ConfigMap names (e.g., boutique-db-dump-abc123f)
+                                # to force pods to reload when content changes.
+                                # Setting this to "true" keeps the name exactly as defined
+                                # (boutique-db-dump) so other manifests can reference it
+                                # by a predictable, stable name.

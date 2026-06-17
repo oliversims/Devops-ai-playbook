@@ -1,4 +1,13 @@
+# -------------------------------------------------------
+# NAMESPACE: Create an isolated environment for the boutique app
+# -------------------------------------------------------
+# A Namespace is like a "virtual cluster" inside your Kubernetes cluster.
+# It groups all the boutique resources (pods, services, secrets, etc.)
+# together and isolates them from other applications running
+# in the same cluster (e.g., monitoring tools, other apps).
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: boutique
+  name: boutique  # The name of the namespace.
+                  # All resources with "namespace: boutique" will live here.
+                  # Referenced in every other manifest file in this project.

@@ -1,19 +1,59 @@
+# -------------------------------------------------------
+# ARGOCD APPLICATION: Tell ArgoCD to manage the boutique app
+# -------------------------------------------------------
+# This is an ArgoCD custom resource (CRD) that registers your
+# application with ArgoCD. Once applied, ArgoCD will continuously
+# watch your Git repository and ensure the Kubernetes cluster
+# always matches what is defined in your repo (GitOps pattern).
+# "Git is the single source of truth"
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: Application          # ArgoCD's custom resource type for managing applications
 metadata:
-  name: boutique
-  namespace: argocd
+  name: boutique           # Name of this application in the ArgoCD UI
+  namespace: argocd        # Must always be "argocd" — that's where ArgoCD lives
+
 spec:
-  project: default
+  project: default  # Which ArgoCD project this app belongs to.
+                    # "default" is the built-in project. You can create custom
+                    # projects to restrict permissions per team or environment.
+
+  # -------------------------------------------------------
+  # SOURCE: Where ArgoCD pulls the Kubernetes manifests from
+  # -------------------------------------------------------
   source:
-    repoURL: 'https://github.com/vishakhasadhwani/DevOps-Practice-Guide.git'
-    targetRevision: main
-    path: gitops
+    repoURL: 'https://github.com/oliversims/Devops-ai-playbook'  # The Git repo to watch
+    targetRevision: main  # The branch to track. ArgoCD will detect any new
+                          # commits pushed to "main" and sync them to the cluster.
+    path: gitops          # The folder inside the repo that contains the K8s manifests.
+                          # ArgoCD will only look at files inside this folder.
+
+  # -------------------------------------------------------
+  # DESTINATION: Where ArgoCD deploys the manifests to
+  # -------------------------------------------------------
   destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: boutique
-  syncPolicy: {}
+    server: 'https://kubernetes.default.svc'  # "Deploy to THIS cluster" — the cluster
+                                               # where ArgoCD itself is running.
+                                               # You can point this to a different cluster
+                                               # if managing multiple clusters.
+    namespace: boutique  # Deploy all resources into the "boutique" namespace
+
+  # -------------------------------------------------------
+  # SYNC POLICY: How ArgoCD handles synchronization
+  # -------------------------------------------------------
+  syncPolicy: {}  # Empty = MANUAL sync only.
+                  # ArgoCD will DETECT drift (differences between Git and the cluster)
+                  # but will NOT automatically apply changes.
+                  # You must click "Sync" in the ArgoCD UI or run:
+                  # argocd app sync boutique
+
+  # -------------------------------------------------------
+  # AUTOMATED SYNC (commented out — enable for full GitOps)
+  # -------------------------------------------------------
+  # Uncomment this block to enable fully automated GitOps:
   # syncPolicy:
   #   automated:
-  #     prune: true
-  #     selfHeal: true
+  #     prune: true      # Automatically DELETE resources that were removed from Git.
+  #                      # Without this, deleted manifests leave orphaned resources in the cluster.
+  #     selfHeal: true   # Automatically REVERT any manual changes made directly to the cluster.
+  #                      # If someone runs "kubectl edit" and changes something, ArgoCD will
+  #                      # restore it back to what Git says it should be.

@@ -1,3 +1,11 @@
+# -------------------------------------------------------
+# DEPLOYMENT: Run the Product Service
+# -------------------------------------------------------
+# The Product Service is responsible for managing the product catalog.
+# It handles creating, reading, updating, and deleting products.
+# It is one of the most called services in the app — both the
+# Gateway, Orders service, and order-service all call it to
+# fetch product details.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,40 +15,56 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: product-service
+      app: product-service  # Manages pods with this label
   template:
     metadata:
       labels:
-        app: product-service
+        app: product-service  # Label applied to every pod created by this Deployment
     spec:
       containers:
         - name: product-service
+          # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
           image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/product-service:1ebec3729cd10fe1eeac6f0858fba58e2da07956
+
           ports:
-            - containerPort: 3003
+            - containerPort: 3003  # The port the Product service listens on inside the container
+
           env:
             - name: NODE_ENV
-              value: development
+              value: development  # Tel   ls the Node.js app it's running in development mode
+
             - name: PORT
-              value: "3003"
+              value: "3003"       # The port this app binds to (matches containerPort above)
+
+            # Database connection string — pulled from Kubernetes Secret.
+            # Points to products_db — the Product service's own isolated database.
+            # This is where all product data (name, price, stock, images) is stored.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: PRODUCTS_DB_URL
+                  name: boutique-secrets  # The Kubernetes Secret object
+                  key: PRODUCTS_DB_URL    # postgresql://postgres:postgres123@boutique-postgres:5432/products_db
 
 ---
 
+# -------------------------------------------------------
+# SERVICE: Expose the Product Service inside the cluster
+# -------------------------------------------------------
+# Gives the Product Service a stable internal DNS name.
+# Multiple other services (Gateway, orders, order-service)
+# all use "http://product-service:3003" to reach it.
 apiVersion: v1
 kind: Service
 metadata:
-  name: product-service
+  name: product-service  # Other pods reach this using "http://product-service:3003"
   namespace: boutique
 spec:
   selector:
-    app: product-service
+    app: product-service  # Forward traffic to pods with this label
+
   ports:
     - protocol: TCP
-      port: 3003
-      targetPort: 3003
-  type: ClusterIP
+      port: 3003        # The port other services use to reach the Product service
+      targetPort: 3003  # Forwards traffic to port 3003 on the pod (matches containerPort)
+
+  type: ClusterIP  # Internal only — only accessible inside the cluster

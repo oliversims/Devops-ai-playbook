@@ -1,3 +1,10 @@
+# -------------------------------------------------------
+# DEPLOYMENT: Run the Order Service
+# -------------------------------------------------------
+# The Order Service handles order processing logic.
+# It needs to talk to both the Auth service (to verify the user
+# is logged in) and the Product service (to verify product
+# details and availability before placing an order).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,44 +14,65 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: order-service
+      app: order-service  # Manages pods with this label
   template:
     metadata:
       labels:
-        app: order-service
+        app: order-service  # Label applied to every pod created by this Deployment
     spec:
       containers:
         - name: order-service
+          # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
           image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/order-service:1ebec3729cd10fe1eeac6f0858fba58e2da07956
+
           ports:
-            - containerPort: 3004
+            - containerPort: 3004  # The port the Order service listens on inside the container
+
           env:
             - name: NODE_ENV
-              value: development
+              value: development  # Tells the Node.js app it's running in development mode
+
             - name: PORT
-              value: "3004"
+              value: "3004"       # The port this app binds to (matches containerPort above)
+
+            # Database connection string — pulled from Kubernetes Secret.
+            # Uses ORDERS_DB_URL which points to the orders_db database
+            # on the shared PostgreSQL instance (boutique-postgres:5432).
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: ORDERS_DB_URL
+                  name: boutique-secrets  # The Kubernetes Secret object
+                  key: ORDERS_DB_URL      # postgresql://postgres:postgres123@boutique-postgres:5432/orders_db
+
+            # The Order service calls the Auth service to verify
+            # that the user placing the order is authenticated.
             - name: AUTH_SERVICE_URL
               value: "http://auth:3002"
+
+            # The Order service calls the Product service to check
+            # product details (price, availability) when creating an order.
             - name: PRODUCT_SERVICE_URL
               value: "http://product-service:3003"
 
 ---
 
+# -------------------------------------------------------
+# SERVICE: Expose the Order Service inside the cluster
+# -------------------------------------------------------
+# Gives the Order Service a stable internal DNS name so
+# the Gateway and other services can reach it reliably.
 apiVersion: v1
 kind: Service
 metadata:
-  name: order-service
+  name: order-service  # Other pods reach this service using "http://order-service:3004"
   namespace: boutique
 spec:
   selector:
-    app: order-service
+    app: order-service  # Forward traffic to pods with this label
+
   ports:
     - protocol: TCP
-      port: 3002
-      targetPort: 3002
-  type: ClusterIP
+      port: 3004        # The port other services use to reach the Order Service
+      targetPort: 3004  # Forwards traffic to port 3004 on the pod (matches containerPort)
+
+  type: ClusterIP  # Internal only — only accessible inside the cluster

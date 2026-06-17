@@ -1,11 +1,31 @@
+# -------------------------------------------------------
+# SERVICE: Headless Service for PostgreSQL
+# -------------------------------------------------------
+# This Service provides a stable network identity for the 
+# PostgreSQL database. Other pods (like the microservices) 
+# use the name "boutique-postgres" to connect to the DB.
 apiVersion: v1
 kind: Service
 metadata:
-  name: boutique-postgres
-  namespace: boutique
+  name: boutique-postgres # The internal DNS name (e.g., boutique-postgres:5432)
+  namespace: boutique      # Must be in the same namespace as the database pod
 spec:
+  # -------------------------------------------------------
+  # HEADLESS SERVICE: Why clusterIP is "None"
+  # -------------------------------------------------------
+  # Setting clusterIP to "None" makes this a "Headless Service."
+  # Instead of giving the service its own virtual IP, Kubernetes 
+  # DNS will return the direct IP address of the Pod(s) itself.
+  # This is common for stateful databases (like Postgres or 
+  # MongoDB) where you want direct connection to the pod rather 
+  # than going through a load balancer.
   clusterIP: None
+
+  # Route traffic to the pod that has the label "app: postgres"
   selector:
     app: postgres
+
   ports:
-    - port: 5432
+    - port: 5432 # The standard PostgreSQL port for database connections
+
+    

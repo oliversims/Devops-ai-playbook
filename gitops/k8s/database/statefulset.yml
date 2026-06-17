@@ -1,52 +1,106 @@
+# -------------------------------------------------------
+# STATEFULSET: Run PostgreSQL as a stateful database pod
+# -------------------------------------------------------
+# A StatefulSet is like a Deployment but designed for stateful
+# applications like databases. Unlike a Deployment, it gives each
+# pod a stable, predictable name (e.g., boutique-postgres-0) and
+# ensures each pod gets its own persistent storage that survives
+# pod restarts or rescheduling.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: boutique-postgres
-  namespace: boutique
+  name: boutique-postgres  # Pod will be named "boutique-postgres-0"
+  namespace: boutique       # Must match the namespace of the Service and other resources
+
 spec:
-  serviceName: boutique-postgres
-  replicas: 1
+  serviceName: boutique-postgres  # Must match the name of the Headless Service we created earlier.
+                                  # This links the StatefulSet to that Service for DNS resolution.
+  replicas: 1  # Run only 1 PostgreSQL instance.
+               # For high availability you would use more replicas with replication configured.
+
+  # -------------------------------------------------------
+  # SELECTOR: Which pods does this StatefulSet manage?
+  # -------------------------------------------------------
   selector:
     matchLabels:
-      app: postgres
+      app: postgres  # Manages any pod with the label "app: postgres"
+
+  # -------------------------------------------------------
+  # POD TEMPLATE: The blueprint for each pod
+  # -------------------------------------------------------
   template:
     metadata:
       labels:
-        app: postgres
+        app: postgres  # Label applied to every pod — must match selector above
     spec:
       containers:
         - name: postgres
-          image: postgres:15-alpine
+          image: postgres:15-alpine  # Lightweight PostgreSQL 15 image
+
           ports:
-            - containerPort: 5432
+            - containerPort: 5432  # Standard PostgreSQL port
+
+          # -------------------------------------------------------
+          # ENVIRONMENT VARIABLES: Configure the PostgreSQL instance
+          # -------------------------------------------------------
           env:
+            # The default superuser account created when PostgreSQL starts
             - name: POSTGRES_USER
               value: postgres
+
+            # The password for the postgres superuser.
+            # Pulled from a Kubernetes Secret — never hardcoded here.
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: POSTGRES_PASSWORD
+                  name: boutique-secrets  # The Kubernetes Secret object
+                  key: POSTGRES_PASSWORD  # The specific key inside that secret
+
+            # Tells PostgreSQL to store its data files in a subdirectory called "pgdata"
+            # inside the mounted volume. This avoids a known issue where PostgreSQL
+            # refuses to start if the mount directory contains any existing files.
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+
+          # -------------------------------------------------------
+          # VOLUME MOUNT: Where the persistent data volume is attached
+          # -------------------------------------------------------
           volumeMounts:
             - name: postgres-data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/postgresql/data  # Standard PostgreSQL data directory
+
+          # -------------------------------------------------------
+          # READINESS PROBE: Check if PostgreSQL is ready to accept connections
+          # -------------------------------------------------------
+          # Kubernetes uses this probe to know when the pod is healthy
+          # and ready to receive traffic. Until this passes, no traffic
+          # is sent to this pod and the Job/other services will wait.
           readinessProbe:
             exec:
               command:
                 - sh
                 - -c
-                - pg_isready -U postgres
-            initialDelaySeconds: 10
-            periodSeconds: 5
+                - pg_isready -U postgres  # Returns success only when Postgres is accepting connections
+            initialDelaySeconds: 10  # Wait 10 seconds after the container starts before first check.
+                                     # Gives PostgreSQL time to initialize before being probed.
+            periodSeconds: 5         # Check every 5 seconds after the initial delay
+
+  # -------------------------------------------------------
+  # VOLUME CLAIM TEMPLATES: Automatically create persistent storage per pod
+  # -------------------------------------------------------
+  # This is what makes StatefulSet special over a Deployment.
+  # Each pod gets its OWN dedicated Persistent Volume Claim (PVC).
+  # The volume survives pod restarts, rescheduling, and even node failures.
+  # If you scale to 3 replicas, each pod gets its own separate 10Gi volume.
   volumeClaimTemplates:
     - metadata:
-        name: postgres-data
+        name: postgres-data  # Must match the volumeMount name above
       spec:
         accessModes:
-          - ReadWriteOnce
-        storageClassName: gp2
+          - ReadWriteOnce  # The volume can only be mounted by ONE pod at a time.
+                           # This is correct for a single PostgreSQL instance.
+        storageClassName: gp2  # Uses AWS EBS gp2 (General Purpose SSD) storage class.
+                                # This tells AWS to provision an EBS volume automatically.
         resources:
           requests:
-            storage: 10Gi
+            storage: 10Gi  # Request a 10 gigabyte persistent volume from AWS EBS

@@ -1,46 +1,86 @@
+# -------------------------------------------------------
+# DEPLOYMENT: Run the Auth service as a pod in Kubernetes
+# -------------------------------------------------------
+# A Deployment tells Kubernetes HOW to run your container —
+# how many copies, which image to use, what ports to open,
+# and what environment variables to inject.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: auth
-  namespace: boutique
+  name: auth            # Name of this Deployment
+  namespace: boutique   # Kubernetes namespace it lives in — keeps boutique resources isolated
 spec:
-  replicas: 1
+  replicas: 1  # Run exactly 1 copy (pod) of this container.
+               # Increase this for high availability (e.g., replicas: 3)
+
+  # -------------------------------------------------------
+  # SELECTOR: How Kubernetes finds the pods belonging to this Deployment
+  # -------------------------------------------------------
+  # Must match the labels defined in the template below.
   selector:
     matchLabels:
-      app: auth
+      app: auth  # Manages any pod with the label "app: auth"
+
+  # -------------------------------------------------------
+  # POD TEMPLATE: The blueprint for each pod this Deployment creates
+  # -------------------------------------------------------
   template:
     metadata:
       labels:
-        app: auth
+        app: auth  # Label applied to every pod — must match the selector above
     spec:
       containers:
         - name: auth
+          # The full ECR image URI with the commit SHA as the tag.
+          # The CI pipeline (GitHub Actions) automatically updates this tag on every build.
           image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/auth:1ebec3729cd10fe1eeac6f0858fba58e2da07956
+
           ports:
-            - containerPort: 3002
+            - containerPort: 3002  # The port the auth service listens on inside the container
+
+          # -------------------------------------------------------
+          # ENVIRONMENT VARIABLES: Config injected into the container at runtime
+          # -------------------------------------------------------
           env:
             - name: NODE_ENV
-              value: development
+              value: development  # Tells the Node.js app it's running in development mode
+
             - name: PORT
-              value: "3002"
+              value: "3002"       # Tells the app which port to bind to (must match containerPort above)
+
+            # DATABASE_URL is sensitive — it's NOT hardcoded here.
+            # Instead it's pulled from a Kubernetes Secret called "boutique-secrets"
+            # using the key "AUTH_DB_URL". This keeps credentials out of your codebase.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: AUTH_DB_URL
+                  name: boutique-secrets  # Name of the Kubernetes Secret object
+                  key: AUTH_DB_URL        # The specific key inside that secret to use
 
---- 
+---
 
+# -------------------------------------------------------
+# SERVICE: Expose the Auth Deployment inside the cluster
+# -------------------------------------------------------
+# A Service gives the Deployment a stable internal DNS name and IP address.
+# Without a Service, other pods can't reliably reach the auth pod
+# because pod IPs change every time a pod restarts.
 apiVersion: v1
 kind: Service
 metadata:
-  name: auth
-  namespace: boutique
+  name: auth           # Other services reach auth using this name (e.g., http://auth:3002)
+  namespace: boutique  # Must be in the same namespace as the Deployment
 spec:
+  # Route traffic to any pod with the label "app: auth"
   selector:
     app: auth
+
   ports:
     - protocol: TCP
-      port: 3002
-      targetPort: 3002
+      port: 3002        # The port OTHER services use to reach this service
+      targetPort: 3002  # The port on the pod to forward traffic to (matches containerPort above)
+
+  # ClusterIP means this service is ONLY accessible inside the cluster.
+  # It is NOT exposed to the internet — only other pods/services can reach it.
+  # (Use NodePort or LoadBalancer if you need external access)
   type: ClusterIP

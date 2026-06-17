@@ -1,0 +1,25 @@
+# Verification commands — run after applying 05_argocd
+# Setup: terraform output -raw configure_kubectl | Invoke-Expression
+
+## ArgoCD
+
+kubectl get pods,svc -n argocd
+helm list -n argocd
+
+kubectl port-forward svc/argocd-server 8443:80 -n argocd
+# UI: http://localhost:8443  (use HTTP — server.insecure is enabled)
+# Login: terraform output argocd_username
+#        terraform output -raw argocd_password
+
+## Monitoring (Prometheus / Grafana / Alertmanager)
+
+kubectl get pods,svc -n monitoring
+helm list -n monitoring
+
+kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring
+# UI: http://localhost:9090
+
+kubectl port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring
+# UI: http://localhost:8080
+# Login: terraform output grafana_username
+#        terraform output -raw grafana_password

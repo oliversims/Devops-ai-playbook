@@ -1,18 +1,56 @@
-apiVersion: monitoring.coreos.com/v1
+# -------------------------------------------------------
+# SERVICEMONITOR: Tell Prometheus to scrape metrics from the Gateway
+# -------------------------------------------------------
+# A ServiceMonitor is a custom Kubernetes resource provided by the
+# Prometheus Operator. It tells Prometheus WHERE and HOW to collect
+# metrics from your services — without you having to manually edit
+# Prometheus config files. This is the standard way to set up
+# monitoring in a Kubernetes cluster running kube-prometheus-stack.
+apiVersion: monitoring.coreos.com/v1  # Provided by the Prometheus Operator (not built-in Kubernetes)
 kind: ServiceMonitor
 metadata:
   name: boutique-services
-  namespace: monitoring
+  namespace: monitoring  # Lives in the "monitoring" namespace where Prometheus is installed,
+                         # NOT in the "boutique" namespace where the app lives.
+                         # This is intentional — monitoring tools live separately from the app.
+
   labels:
-    release: kube-prometheus-stack
+    release: kube-prometheus-stack  # ⚠️ CRITICAL label — this must match the label that
+                                    # Prometheus uses to discover ServiceMonitors.
+                                    # If this label is missing or wrong, Prometheus will
+                                    # completely ignore this ServiceMonitor and collect no metrics.
+
 spec:
+  # -------------------------------------------------------
+  # NAMESPACE SELECTOR: Which namespace to look for services in
+  # -------------------------------------------------------
+  # Even though this ServiceMonitor lives in the "monitoring" namespace,
+  # it reaches ACROSS into the "boutique" namespace to find the services
+  # it should scrape. This is how cross-namespace monitoring works.
   namespaceSelector:
     matchNames:
-      - boutique
+      - boutique  # Look for services inside the "boutique" namespace
+
+  # -------------------------------------------------------
+  # SELECTOR: Which specific service to scrape
+  # -------------------------------------------------------
+  # Prometheus will only scrape services that have this label.
+  # In this case it targets the Gateway service (app: gateway).
+  # The Gateway is the ideal scrape target because all traffic
+  # flows through it — giving you a full picture of the app's health.
   selector:
     matchLabels:
-      app: gateway   
+      app: gateway  # Matches the "labels:" we defined on the Gateway Service
+
+  # -------------------------------------------------------
+  # ENDPOINTS: How to scrape the metrics
+  # -------------------------------------------------------
   endpoints:
-    - port: http
-      path: /metrics
-      interval: 15s
+    - port: http      # The named port on the Gateway Service to scrape.
+                      # This is why we named the port "http" in the Gateway Service —
+                      # so we can reference it by name here instead of a port number.
+      path: /metrics  # The URL path where the Gateway exposes its Prometheus metrics.
+                      # The Gateway app must have a /metrics endpoint built in
+                      # (e.g., using the prom-client library in Node.js).
+      interval: 15s   # Scrape the /metrics endpoint every 15 seconds.
+                      # Prometheus will collect a fresh snapshot of metrics every 15s.

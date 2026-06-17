@@ -1,3 +1,11 @@
+# -------------------------------------------------------
+# DEPLOYMENT: Run the API Gateway service
+# -------------------------------------------------------
+# The Gateway is the single entry point for ALL backend traffic.
+# Instead of other services or the frontend calling each microservice
+# directly, they all go through the Gateway. The Gateway then
+# forwards the request to the correct microservice internally.
+# This is the "API Gateway" pattern.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,47 +15,79 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: gateway
+      app: gateway  # Manages pods with this label
   template:
     metadata:
       labels:
-        app: gateway
+        app: gateway  # Label applied to every pod created by this Deployment
     spec:
       containers:
         - name: gateway
+          # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
           image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/gateway:1ebec3729cd10fe1eeac6f0858fba58e2da07956
+
           ports:
-            - containerPort: 3001
+            - containerPort: 3001  # The port the Gateway listens on inside the container
+
+          # -------------------------------------------------------
+          # ENVIRONMENT VARIABLES: Tell the Gateway where each microservice lives
+          # -------------------------------------------------------
+          # This is the KEY part of the Gateway pattern.
+          # The Gateway doesn't hardcode IPs — it uses Kubernetes DNS service names.
+          # Each URL below is the internal ClusterIP Service name of that microservice.
+          # Kubernetes DNS automatically resolves these names to the correct pod IPs.
           env:
             - name: NODE_ENV
-              value: development
+              value: development  # Tells the Node.js app it's running in development mode
+
             - name: PORT
-              value: "3001"
+              value: "3001"       # The port this Gateway app binds to (matches containerPort)
+
+            # Each variable below tells the Gateway how to reach a specific microservice.
+            # Format: http://<service-name>:<service-port>
+            # The service name matches the "name:" field in each microservice's Service manifest.
             - name: AUTH_SERVICE_URL
-              value: "http://auth:3002"
+              value: "http://auth:3002"             # Routes auth requests to the Auth service
+
             - name: PRODUCTS_SERVICE_URL
-              value: "http://product-service:3003"
+              value: "http://product-service:3003"  # Routes product requests to the Product service
+
             - name: ORDER_SERVICE_URL
-              value: "http://order-service:3004"
+              value: "http://order-service:3004"    # Routes order requests to the Order service
+
             - name: ORDERS_SERVICE_URL
-              value: "http://orders:3005"
+              value: "http://orders:3005"           # Routes orders requests to the Orders service
+
             - name: USERS_SERVICE_URL
-              value: "http://user-service:3006"
+              value: "http://user-service:3006"     # Routes user requests to the User service
+
 ---
+
+# -------------------------------------------------------
+# SERVICE: Expose the Gateway inside the cluster
+# -------------------------------------------------------
+# This Service gives the Gateway a stable internal DNS name.
+# The frontend (or any external ingress/load balancer) will
+# send all traffic to "gateway:3001" and the Gateway will
+# handle routing it to the correct microservice.
 apiVersion: v1
 kind: Service
 metadata:
-  name: gateway
+  name: gateway      # Other pods reach the gateway using "http://gateway:3001"
   namespace: boutique
   labels:
-    app: gateway
+    app: gateway     # Label on the Service itself — useful for Prometheus service discovery
 spec:
   selector:
-    app: gateway
-  ports:
-    - name: http   
-      protocol: TCP
-      port: 3001
-      targetPort: 3001
-  type: ClusterIP
+    app: gateway     # Forward traffic to pods with this label
 
+  ports:
+    - name: http     # Naming the port "http" is best practice — useful for
+                     # service meshes (like Istio) and monitoring tools (like Prometheus)
+      protocol: TCP
+      port: 3001        # The port other services use to reach the Gateway
+      targetPort: 3001  # The port on the pod to forward traffic to (matches containerPort)
+
+  type: ClusterIP  # Internal only — not exposed to the internet directly.
+                   # External traffic reaches the Gateway through an Ingress
+                   # or a LoadBalancer sitting in front of it.

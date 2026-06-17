@@ -1,3 +1,11 @@
+# -------------------------------------------------------
+# DEPLOYMENT: Run the User Service
+# -------------------------------------------------------
+# The User Service is responsible for managing user profiles.
+# It handles user data such as names, addresses, and preferences.
+# It is separate from the Auth service — Auth handles LOGIN
+# (passwords, tokens, sessions) while User Service handles
+# PROFILE data (who the user is, their details and settings).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,40 +15,55 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: user-service
+      app: user-service  # Manages pods with this label
   template:
     metadata:
       labels:
-        app: user-service
+        app: user-service  # Label applied to every pod created by this Deployment
     spec:
       containers:
         - name: user-service
+          # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
           image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/user-service:1ebec3729cd10fe1eeac6f0858fba58e2da07956
+
           ports:
-            - containerPort: 3006
+            - containerPort: 3006  # The port the User service listens on inside the container
+
           env:
             - name: NODE_ENV
-              value: development
+              value: development  # Tells the Node.js app it's running in development mode
+
             - name: PORT
-              value: "3006"
+              value: "3006"       # The port this app binds to (matches containerPort above)
+
+            # Database connection string — pulled from Kubernetes Secret.
+            # Points to users_db — the User service's own isolated database.
+            # This is where all user profile data is stored.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: boutique-secrets
-                  key: USERS_DB_URL
+                  name: boutique-secrets  # The Kubernetes Secret object
+                  key: USERS_DB_URL       # postgresql://postgres:postgres123@boutique-postgres:5432/users_db
 
---- 
+---
 
+# -------------------------------------------------------
+# SERVICE: Expose the User Service inside the cluster
+# -------------------------------------------------------
+# Gives the User Service a stable internal DNS name so
+# the Gateway can route user profile requests to it.
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-service
+  name: user-service  # Other pods reach this using "http://user-service:3006"
   namespace: boutique
 spec:
   selector:
-    app: user-service
+    app: user-service  # Forward traffic to pods with this label
+
   ports:
     - protocol: TCP
-      port: 3006
-      targetPort: 3006
-  type: ClusterIP
+      port: 3006        # The port other services use to reach the User service
+      targetPort: 3006  # Forwards traffic to port 3006 on the pod (matches containerPort)
+
+  type: ClusterIP  # Internal only — only accessible inside the cluster
