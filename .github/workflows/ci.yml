@@ -33,8 +33,9 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  build-and-push:
+  build-all:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.service == 'all'
     strategy:
       matrix:
         service:
@@ -45,8 +46,6 @@ jobs:
           - product-service
           - user-service
           - frontend
-    # On push: build every service. On manual run: build all or only the one you picked.
-    if: github.event_name == 'push' || github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service
 
     steps:
       - name: Checkout Code
@@ -79,9 +78,46 @@ jobs:
           docker build -t $IMAGE_URI $BUILD_PATH
           docker push $IMAGE_URI
 
+  build-one:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.service != 'all'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS \
+          --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - name: Build and Push Docker Image
+        run: |
+          SERVICE=${{ github.event.inputs.service }}
+
+          if [ "$SERVICE" = "frontend" ]; then
+            BUILD_PATH="projects/boutique-microservices/frontend"
+          else
+            BUILD_PATH="projects/boutique-microservices/backend/services/$SERVICE"
+          fi
+
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$SERVICE:$IMAGE_TAG
+
+          echo "Building $IMAGE_URI from $BUILD_PATH"
+          docker build -t $IMAGE_URI $BUILD_PATH
+          docker push $IMAGE_URI
+
   update-all-manifests:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: build-all
     if: github.event_name == 'push' || github.event.inputs.service == 'all'
     permissions:
       contents: write
@@ -112,7 +148,7 @@ jobs:
 
   update-one-manifest:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: build-one
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.service != 'all'
     permissions:
       contents: write
