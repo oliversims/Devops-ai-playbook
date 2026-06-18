@@ -1,7 +1,7 @@
 # Builds Docker images, pushes to ECR, and updates GitOps manifests.
 #
-# Push to main -> builds ONLY services whose files changed
-# Manual run -> pick "all" or ONE service from the dropdown
+# Push to main  -> builds ONLY services whose files changed
+# Manual run    -> pick "all" or ONE service from the dropdown
 name: Boutique CI Pipeline
 
 on:
@@ -33,17 +33,17 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  # Figure out which services to build (changed paths on push, or manual choice).
+  # Step A — decide which services to build
   setup:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.manual-all.outputs.matrix || steps.manual-one.outputs.matrix || steps.push-all.outputs.matrix || steps.push-changed.outputs.matrix || '[]' }}
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         if: github.event_name == 'push'
         uses: actions/checkout@v4
 
-      - name: Detect changed services
+      - name: Detect changed folders
         if: github.event_name == 'push'
         uses: dorny/paths-filter@v3
         id: filter
@@ -66,32 +66,47 @@ jobs:
             workflow:
               - '.github/workflows/ci.yml'
 
-      - name: Set build matrix
-        id: set-matrix
+      # Manual run — user chose "all"
+      - name: Manual run — build all services
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'all'
+        id: manual-all
         run: |
-          # Build a space-separated list, then convert to JSON with jq.
-          # Use GITHUB_OUTPUT heredoc so quotes are not stripped between jobs.
-          SERVICES=""
+          {
+            echo 'matrix<<EOF'
+            echo '["auth","gateway","orders","order-service","product-service","user-service","frontend"]'
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [ "${{ github.event.inputs.service }}" = "all" ]; then
-              SERVICES="auth gateway orders order-service product-service user-service frontend"
-            else
-              SERVICES="${{ github.event.inputs.service }}"
-            fi
-          elif [ "${{ steps.filter.outputs.workflow }}" = "true" ]; then
-            SERVICES="auth gateway orders order-service product-service user-service frontend"
-          else
-            [ "${{ steps.filter.outputs.auth }}" = "true" ] && SERVICES="$SERVICES auth"
-            [ "${{ steps.filter.outputs.gateway }}" = "true" ] && SERVICES="$SERVICES gateway"
-            [ "${{ steps.filter.outputs.orders }}" = "true" ] && SERVICES="$SERVICES orders"
-            [ "${{ steps.filter.outputs.order-service }}" = "true" ] && SERVICES="$SERVICES order-service"
-            [ "${{ steps.filter.outputs.product-service }}" = "true" ] && SERVICES="$SERVICES product-service"
-            [ "${{ steps.filter.outputs.user-service }}" = "true" ] && SERVICES="$SERVICES user-service"
-            [ "${{ steps.filter.outputs.frontend }}" = "true" ] && SERVICES="$SERVICES frontend"
-          fi
+      # Manual run — user chose one service
+      - name: Manual run — build one service
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.service != 'all'
+        id: manual-one
+        run: |
+          {
+            echo 'matrix<<EOF'
+            echo '["${{ github.event.inputs.service }}"]'
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
-          JSON=$(echo $SERVICES | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s -c .)
+      # Push — ci.yml changed, rebuild everything
+      - name: Push — workflow file changed, build all
+        if: github.event_name == 'push' && steps.filter.outputs.workflow == 'true'
+        id: push-all
+        run: |
+          {
+            echo 'matrix<<EOF'
+            echo '["auth","gateway","orders","order-service","product-service","user-service","frontend"]'
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      # Push — only service folders changed
+      - name: Push — build changed services only
+        if: github.event_name == 'push' && steps.filter.outputs.workflow != 'true'
+        id: push-changed
+        env:
+          CHANGED: ${{ steps.filter.outputs.changes }}
+        run: |
+          JSON=$(echo "$CHANGED" | jq 'map(select(. != "workflow"))')
           echo "Services to build: $JSON"
           {
             echo 'matrix<<EOF'
@@ -99,6 +114,7 @@ jobs:
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
+  # Step B — build and push Docker images to ECR
   build:
     runs-on: ubuntu-latest
     needs: setup
@@ -108,10 +124,10 @@ jobs:
         service: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -124,20 +140,19 @@ jobs:
           docker login --username AWS \
           --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      - name: Build and Push Docker Image
+      - name: Build and push image
         run: |
-          if [ "${{ matrix.service }}" = "frontend" ]; then
-            BUILD_PATH="projects/boutique-microservices/frontend"
-          else
-            BUILD_PATH="projects/boutique-microservices/backend/services/${{ matrix.service }}"
-          fi
+          SERVICE="${{ matrix.service }}"
+          BUILD_PATH="projects/boutique-microservices/backend/services/$SERVICE"
+          test "$SERVICE" = "frontend" && BUILD_PATH="projects/boutique-microservices/frontend"
 
-          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/${{ matrix.service }}:$IMAGE_TAG
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$SERVICE:$IMAGE_TAG
 
           echo "Building $IMAGE_URI from $BUILD_PATH"
           docker build -t $IMAGE_URI $BUILD_PATH
           docker push $IMAGE_URI
 
+  # Step C — update GitOps manifests for the services that were built
   update-manifests:
     runs-on: ubuntu-latest
     needs: [setup, build]
@@ -146,21 +161,20 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Update image tags for changed services
+      - name: Update image tags
+        env:
+          MATRIX: ${{ needs.setup.outputs.matrix }}
         run: |
           NEW_TAG=${{ github.sha }}
           ACCOUNT=${{ secrets.AWS_ACCOUNT_ID }}
           REGION=${{ secrets.AWS_REGION }}
 
-          for SERVICE in $(echo '${{ needs.setup.outputs.matrix }}' | jq -r '.[]'); do
-            if [ "$SERVICE" = "frontend" ]; then
-              MANIFEST="gitops/k8s/frontend/deployment.yml"
-            else
-              MANIFEST="gitops/k8s/backend/${SERVICE}.yml"
-            fi
+          for SERVICE in $(echo "$MATRIX" | jq -r '.[]'); do
+            MANIFEST="gitops/k8s/backend/$SERVICE.yml"
+            test "$SERVICE" = "frontend" && MANIFEST="gitops/k8s/frontend/deployment.yml"
             sed -i "s|${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${SERVICE}:.*|${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${SERVICE}:${NEW_TAG}|g" $MANIFEST
             echo "Updated $MANIFEST"
           done
