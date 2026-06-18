@@ -24,7 +24,7 @@ spec:
       containers:
         - name: product-service
           # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
-          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/product-service:b5070862814fac3a2d7a89ebc513297c133c433e
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/product-service:cadab44ac449f5470e90410e9b7f67a934f92d83
 
           ports:
             - containerPort: 3003  # The port the Product service listens on inside the container
