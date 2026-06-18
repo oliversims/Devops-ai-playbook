@@ -5,7 +5,7 @@ import { User } from '../types';
 
 const router = express.Router();
 
-// demo mode - simple session storage (not persistent)
+// Demo mode - simple session storage (not persistent)
 let currentUser: any = null;
 
 router.post('/login', async (req, res) => {
