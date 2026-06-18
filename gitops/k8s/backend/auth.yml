@@ -33,7 +33,7 @@ spec:
         - name: auth
           # The full ECR image URI with the commit SHA as the tag.
           # The CI pipeline (GitHub Actions) automatically updates this tag on every build.
-          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/auth:d4fe63f20e5792d6a45b3989ce85f91aaf081f80
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/auth:81c7e9e19e3e600dd778c82ad227f76b2511f801
 
           ports:
             - containerPort: 3002  # The port the auth service listens on inside the container

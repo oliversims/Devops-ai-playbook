@@ -24,7 +24,7 @@ spec:
       containers:
         - name: user-service
           # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
-          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/user-service:d4fe63f20e5792d6a45b3989ce85f91aaf081f80
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/user-service:81c7e9e19e3e600dd778c82ad227f76b2511f801
 
           ports:
             - containerPort: 3006  # The port the User service listens on inside the container
