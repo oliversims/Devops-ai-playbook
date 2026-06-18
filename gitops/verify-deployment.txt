@@ -7,4 +7,10 @@ kubectl get pods -n boutique
 kubectl get deployments -n boutique
 kubectl get svc -n boutique
 
-kubectl get pods -n boutique -l app=boutique-postgres
+kubectl get pods -n boutique -l app=postgres
+
+# Access the app (run each port-forward in a separate terminal)
+kubectl port-forward svc/gateway 3001:3001 -n boutique
+kubectl port-forward svc/frontend 3000:3000 -n boutique
+# Open: http://localhost:3000
+# The browser calls the API at http://localhost:3001 — both port-forwards are required
