@@ -13,7 +13,7 @@ yarn.lock
 .env.test.local
 .env.production.local
 
-# Build outputs
+# Build output
 dist/
 build/
 *.tgz
