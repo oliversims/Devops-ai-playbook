@@ -69,19 +69,35 @@ jobs:
       - name: Set build matrix
         id: set-matrix
         run: |
-          ALL='["auth","gateway","orders","order-service","product-service","user-service","frontend"]'
+          # Build a space-separated list, then convert to JSON with jq.
+          # Use GITHUB_OUTPUT heredoc so quotes are not stripped between jobs.
+          SERVICES=""
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "${{ github.event.inputs.service }}" = "all" ]; then
-              echo "matrix=$ALL" >> $GITHUB_OUTPUT
+              SERVICES="auth gateway orders order-service product-service user-service frontend"
             else
-              echo 'matrix=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
+              SERVICES="${{ github.event.inputs.service }}"
             fi
           elif [ "${{ steps.filter.outputs.workflow }}" = "true" ]; then
-            echo "matrix=$ALL" >> $GITHUB_OUTPUT
+            SERVICES="auth gateway orders order-service product-service user-service frontend"
           else
-            echo "matrix=${{ steps.filter.outputs.changes }}" >> $GITHUB_OUTPUT
+            [ "${{ steps.filter.outputs.auth }}" = "true" ] && SERVICES="$SERVICES auth"
+            [ "${{ steps.filter.outputs.gateway }}" = "true" ] && SERVICES="$SERVICES gateway"
+            [ "${{ steps.filter.outputs.orders }}" = "true" ] && SERVICES="$SERVICES orders"
+            [ "${{ steps.filter.outputs.order-service }}" = "true" ] && SERVICES="$SERVICES order-service"
+            [ "${{ steps.filter.outputs.product-service }}" = "true" ] && SERVICES="$SERVICES product-service"
+            [ "${{ steps.filter.outputs.user-service }}" = "true" ] && SERVICES="$SERVICES user-service"
+            [ "${{ steps.filter.outputs.frontend }}" = "true" ] && SERVICES="$SERVICES frontend"
           fi
+
+          JSON=$(echo $SERVICES | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s -c .)
+          echo "Services to build: $JSON"
+          {
+            echo 'matrix<<EOF'
+            echo "$JSON"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
   build:
     runs-on: ubuntu-latest
