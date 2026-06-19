@@ -1,0 +1,37 @@
+# Boutique app HTTPS Ingress — applied by deploy-argo-cd.ps1 (not gitops/ingress).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - boutique.yml
+
+configMapGenerator:
+  - name: boutique-ingress-config
+    envs:
+      - ingress.env
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: boutique-ingress-config
+      fieldPath: data.ACM_CERTIFICATE_ARN
+    targets:
+      - select:
+          kind: Ingress
+        fieldPaths:
+          - metadata.annotations.[alb.ingress.kubernetes.io/certificate-arn]
+
+  - source:
+      kind: ConfigMap
+      name: boutique-ingress-config
+      fieldPath: data.BOUTIQUE_HOST
+    targets:
+      - select:
+          kind: Ingress
+          name: boutique
+        fieldPaths:
+          - spec.rules.0.host
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]

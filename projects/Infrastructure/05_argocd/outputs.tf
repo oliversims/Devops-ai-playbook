@@ -1,7 +1,3 @@
-locals {
-  cluster_name = data.terraform_remote_state.eks.outputs.cluster_name
-}
-
 data "kubernetes_secret_v1" "argocd_admin" {
   metadata {
     name      = "argocd-initial-admin-secret"
@@ -20,15 +16,6 @@ data "kubernetes_secret_v1" "grafana" {
   depends_on = [helm_release.monitoring]
 }
 
-output "configure_kubectl" {
-  description = "Run: terraform output -raw configure_kubectl | Invoke-Expression"
-  value       = "aws eks update-kubeconfig --region ${var.region} --name ${local.cluster_name}"
-}
-
-output "argocd_port_forward" {
-  description = "Run in a separate terminal — UI: http://localhost:8443 (HTTP, not HTTPS)"
-  value       = "kubectl port-forward svc/argocd-server 8443:80 -n argocd"
-}
 
 output "argocd_username" {
   description = "ArgoCD login user"
@@ -41,16 +28,6 @@ output "argocd_password" {
   sensitive   = true
 }
 
-output "prometheus_port_forward" {
-  description = "Run in a separate terminal — UI: http://localhost:9090"
-  value       = "kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring"
-}
-
-output "grafana_port_forward" {
-  description = "Run in a separate terminal — UI: http://localhost:8080"
-  value       = "kubectl port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring"
-}
-
 output "grafana_username" {
   description = "Grafana login user"
   value       = "admin"
@@ -61,3 +38,33 @@ output "grafana_password" {
   value       = data.kubernetes_secret_v1.grafana.data["admin-password"]
   sensitive   = true
 }
+output "domain_name" {
+  description = "Base domain — use subdomains for Ingress hosts (e.g. grafana.<domain>)"
+  value       = data.terraform_remote_state.vpc.outputs.domain_name
+}
+
+output "acm_certificate_arn" {
+  description = "Wildcard ACM cert ARN — use on Ingress: alb.ingress.kubernetes.io/certificate-arn"
+  value       = data.terraform_remote_state.vpc.outputs.acm_certificate_arn
+}
+
+output "app_url" {
+  description = "Boutique app (HTTPS) — after gitops/ingress is synced"
+  value       = "https://app.${data.terraform_remote_state.vpc.outputs.domain_name}"
+}
+
+output "grafana_url" {
+  description = "Grafana UI (HTTPS)"
+  value       = "https://graf.${data.terraform_remote_state.vpc.outputs.domain_name}"
+}
+
+output "argocd_url" {
+  description = "ArgoCD UI (HTTPS)"
+  value       = "https://argo.${data.terraform_remote_state.vpc.outputs.domain_name}"
+}
+
+output "prometheus_url" {
+  description = "Prometheus UI (HTTPS)"
+  value       = "https://pro.${data.terraform_remote_state.vpc.outputs.domain_name}"
+}
+

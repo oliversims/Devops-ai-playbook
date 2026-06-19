@@ -1,25 +1,24 @@
-# Verification commands — run after applying 05_argocd
-# Setup: terraform output -raw configure_kubectl | Invoke-Expression
+# Verify 05_argocd — run from projects/Infrastructure/05_argocd
 
-## ArgoCD
+aws eks update-kubeconfig --region us-east-1 --name eks-cluster
 
-kubectl get pods,svc -n argocd
+# Helm releases (all STATUS: deployed)
+helm list -n kube-system
 helm list -n argocd
-
-kubectl port-forward svc/argocd-server 8443:80 -n argocd
-# UI: http://localhost:8443  (use HTTP — server.insecure is enabled)
-# Login: terraform output argocd_username
-#        terraform output -raw argocd_password
-
-## Monitoring (Prometheus / Grafana / Alertmanager)
-
-kubectl get pods,svc -n monitoring
 helm list -n monitoring
 
-kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring
-# UI: http://localhost:9090
+# ALB controller
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
 
-kubectl port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring
-# UI: http://localhost:8080
-# Login: terraform output grafana_username
-#        terraform output -raw grafana_password
+# external-dns
+kubectl get pods -n kube-system -l app.kubernetes.io/name=external-dns
+
+# ArgoCD
+kubectl get pods -n argocd
+
+# Monitoring
+kubectl get pods -n monitoring
+
+# Credentials
+terraform output -raw argocd_password
+terraform output -raw grafana_password

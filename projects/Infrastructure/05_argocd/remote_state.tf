@@ -9,3 +9,14 @@ data "terraform_remote_state" "eks" {
     region = var.region
   }
 }
+
+# VPC outputs — ACM cert, Route 53 zone, and VPC ID for the load balancer controller.
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+
+  config = {
+    bucket = var.tfstate_bucket
+    key    = "02_vpc/terraform.tfstate"
+    region = var.region
+  }
+}

@@ -22,3 +22,6 @@ subnets = [
 ]
 
 cluster_name = "eks-cluster" # Must match 04_eks
+
+# Replace with your real domain before running terraform apply.
+domain_name = "simsoliver.com"

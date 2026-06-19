@@ -8,9 +8,9 @@ output "cluster_endpoint" {
   value = aws_eks_cluster.eks.endpoint
 }
 
-output "cluster_certificate_authority_data" {
-  value = aws_eks_cluster.eks.certificate_authority[0].data
-}
+# output "cluster_certificate_authority_data" {
+#   value = aws_eks_cluster.eks.certificate_authority[0].data
+# }
 
 output "configure_kubectl" {
   description = "Run this to point kubectl at the new EKS cluster"

@@ -29,3 +29,8 @@ variable "cluster_name" {
   description = "EKS cluster name — used to tag subnets (must match 04_eks cluster_name)"
   type        = string
 }
+
+variable "domain_name" {
+  description = "Your domain name (e.g. example.com). Used for Route 53 and the ACM wildcard certificate."
+  type        = string
+}

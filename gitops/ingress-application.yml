@@ -1,0 +1,19 @@
+# ArgoCD Application — syncs HTTPS Ingress manifests from gitops/ingress/
+# Apply once after ArgoCD is running: kubectl apply -f gitops/ingress-application.yml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/oliversims/Devops-ai-playbook
+    targetRevision: main
+    path: gitops/ingress
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

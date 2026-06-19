@@ -52,14 +52,21 @@ Write-Host "Step 5: Restarting backend deployments..."
 kubectl rollout restart deployment -n boutique auth gateway order-service orders product-service user-service
 
 # -----------------------------------------------------------------------------
-# Step 6: Show status
+# Step 6: Apply boutique HTTPS ingress
 # -----------------------------------------------------------------------------
-Write-Host "Step 6: Deployment status"
+Write-Host "Step 6: Applying boutique HTTPS ingress..."
+kubectl apply -k "$PSScriptRoot\boutique-ingress"
+
+# -----------------------------------------------------------------------------
+# Step 7: Show status
+# -----------------------------------------------------------------------------
+Write-Host "Step 7: Deployment status"
 kubectl get application boutique -n argocd
 kubectl get pods -n boutique
+kubectl get ingress -n boutique
 
 Write-Host ""
-Write-Host "Done. When all pods show 1/1 Running, port-forward gateway + frontend:"
-Write-Host "  kubectl port-forward svc/gateway 3001:3001 -n boutique"
+Write-Host "Done. App URL (after DNS propagates): https://app.simsoliver.com"
+Write-Host "Or port-forward locally:"
 Write-Host "  kubectl port-forward svc/frontend 3000:3000 -n boutique"
 Write-Host "  Open http://localhost:3000"

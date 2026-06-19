@@ -14,6 +14,14 @@ terraform {
     helm = {
       source = "hashicorp/helm"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
   }
 
   backend "s3" {
