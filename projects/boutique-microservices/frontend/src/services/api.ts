@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// Relative /api works in EKS (same-origin via ingress). Local dev uses localhost default.
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
 const apiClient = axios.create({

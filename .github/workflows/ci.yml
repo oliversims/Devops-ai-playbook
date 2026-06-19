@@ -149,7 +149,11 @@ jobs:
           IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$SERVICE:$IMAGE_TAG
 
           echo "Building $IMAGE_URI from $BUILD_PATH"
-          docker build -t $IMAGE_URI $BUILD_PATH
+          if [ "$SERVICE" = "frontend" ]; then
+            docker build --build-arg REACT_APP_API_URL=/api -t $IMAGE_URI $BUILD_PATH
+          else
+            docker build -t $IMAGE_URI $BUILD_PATH
+          fi
           docker push $IMAGE_URI
 
   # Step C — update GitOps manifests for the services that were built
