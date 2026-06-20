@@ -24,7 +24,7 @@ spec:
       containers:
         - name: gateway
           # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
-          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/gateway:00d1d0c70825cc4cbf0ba79fa8a9771bfad06fab
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/gateway:f99c9fb707fd65ae78fe0eb626816b797f6a8e8c
 
           ports:
             - containerPort: 3001  # The port the Gateway listens on inside the container
