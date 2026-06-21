@@ -25,7 +25,7 @@ spec:
       containers:
         - name: orders
           # Full ECR image URI with commit SHA tag — updated automatically by the CI pipeline
-          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/orders:f99c9fb707fd65ae78fe0eb626816b797f6a8e8c
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/orders:e6ea055d27d182f45b9e9f2ce4a11cec42755122
 
           ports:
             - containerPort: 3005  # The port the Orders service listens on inside the container
