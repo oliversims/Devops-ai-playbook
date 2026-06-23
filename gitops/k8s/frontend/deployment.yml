@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/frontend:e6ea055d27d182f45b9e9f2ce4a11cec42755122
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/frontend:dfc0523130f5dd135180bc3ce072e69b87179352
           ports:
             - containerPort: 3000
           # API URL is baked in at image build time (see frontend/Dockerfile). Not read at runtime.
