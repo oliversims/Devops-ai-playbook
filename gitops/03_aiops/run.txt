@@ -1,0 +1,20 @@
+# Deploy gitops/02_aiops — run from repo root
+# HTTPS ingress for Kira at kira.simsoliver.com (shared ALB with gitops/01_ingress)
+
+# Prerequisites (must be ready before apply):
+#   projects/aiops-assistant/04_ui/build-push.ps1 (image in ECR)
+#   projects/aiops-assistant/01_iam/setup-irsa.ps1 (IRSA role for Bedrock)
+#   projects/aiops-assistant/04_ui/deploy.ps1 (pod 1/1 Running in aiops namespace)
+#   ingress.env — KIRA_HOST and ACM_CERTIFICATE_ARN set
+
+# 1. Apply
+kubectl apply -k gitops/02_aiops
+
+# 2. Verify
+kubectl get ingress kira -n aiops
+
+# 3. Open in browser
+# https://kira.simsoliver.com
+
+# 4. Delete ingress only (pod stays running)
+kubectl delete -k gitops/02_aiops

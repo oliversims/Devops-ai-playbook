@@ -1,7 +1,5 @@
-# Docker image repositories for each microservice.
-# CI pushes images here; EKS nodes pull from these repos.
+# One private ECR repository per microservice. CI pushes images; EKS nodes pull them.
 
-# One private registry per service name (frontend, gateway, auth, etc.).
 resource "aws_ecr_repository" "repos" {
   for_each = toset(var.repositories)
 

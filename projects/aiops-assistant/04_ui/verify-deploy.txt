@@ -1,0 +1,8 @@
+# Rollout finished — pod is ready
+kubectl rollout status deployment/kira-ui -n aiops
+
+# Pod should show 1/1 Running
+kubectl get pods -n aiops
+
+# Open http://localhost:8501 (Ctrl+C to stop)
+kubectl port-forward svc/kira-ui 8501:8501 -n aiops

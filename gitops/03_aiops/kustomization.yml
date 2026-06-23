@@ -1,0 +1,39 @@
+# Kira (AIOps) HTTPS ingress — shared ALB with gitops/01_ingress
+# Pod/deployment: projects/aiops-assistant/04_ui/k8s.yml
+# Apply: kubectl apply -k gitops/02_aiops
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - kira.yml
+
+configMapGenerator:
+  - name: aiops-ingress-config
+    envs:
+      - ingress.env
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: aiops-ingress-config
+      fieldPath: data.ACM_CERTIFICATE_ARN
+    targets:
+      - select:
+          kind: Ingress
+        fieldPaths:
+          - metadata.annotations.[alb.ingress.kubernetes.io/certificate-arn]
+
+  - source:
+      kind: ConfigMap
+      name: aiops-ingress-config
+      fieldPath: data.KIRA_HOST
+    targets:
+      - select:
+          kind: Ingress
+          name: kira
+        fieldPaths:
+          - spec.rules.0.host
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]

@@ -1,0 +1,67 @@
+# Kira UI on EKS — namespace, service account, deployment, service
+# Applied by: .\04_ui\deploy.ps1
+# Secret kira-env is created separately from ../.env (Bedrock agent ID, region, etc.)
+# IRSA role (one-time): ..\01_iam\setup-irsa.ps1
+
+# -------------------------------------------------------
+# NAMESPACE: isolates Kira from the boutique app
+# -------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiops
+---
+# -------------------------------------------------------
+# SERVICE ACCOUNT: links the pod to the IRSA IAM role
+# -------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kira-ui
+  namespace: aiops
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::742934034265:role/aiops-kira-ui-role
+---
+# -------------------------------------------------------
+# DEPLOYMENT: runs the Streamlit UI pod
+# -------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kira-ui
+  namespace: aiops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kira-ui
+  template:
+    metadata:
+      labels:
+        app: kira-ui
+    spec:
+      serviceAccountName: kira-ui
+      containers:
+        - name: kira-ui
+          # Image built and pushed by .\04_ui\build-push.ps1
+          image: 742934034265.dkr.ecr.us-east-1.amazonaws.com/aiops-assistant:latest
+          ports:
+            - containerPort: 8501  # Streamlit default port
+          envFrom:
+            - secretRef:
+                name: kira-env  # Created by deploy.ps1 from .env
+---
+# -------------------------------------------------------
+# SERVICE: ClusterIP — reach the pod via port-forward or ingress
+# -------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: kira-ui
+  namespace: aiops
+spec:
+  selector:
+    app: kira-ui
+  ports:
+    - port: 8501
+      targetPort: 8501

@@ -33,8 +33,13 @@ Bedrock Agent (Kira)
 Run the provided script to create both required IAM roles:
 
 ```bash
-chmod +x setup-iam.sh
-./setup-iam.sh
+chmod +x iam/setup-iam.sh
+./iam/setup-iam.sh
+```
+
+On Windows:
+```powershell
+.\iam\setup-iam.ps1
 ```
 
 This creates:
@@ -46,47 +51,42 @@ This creates:
 
 ---
 
-## Step 2: Create the Lambda Functions
+## Step 2: Configure and Deploy the Lambda Functions
 
-Create the following 3 Lambda functions in the AWS Console (or via CLI). Use the code from the `lambda/` directory.
+Edit `config.env` if needed (Prometheus URL, log group, cluster name):
 
-| Function Name | Code File | Execution Role |
-|---------------|-----------|----------------|
-| `aiops-fetch-logs` | `lambda/fetch_logs/lambda_function.py` | `aiops-lambda-role` |
-| `aiops-fetch-metrics` | `lambda/fetch_metrics/lambda_function.py` | `aiops-lambda-role` |
-| `aiops-fetch-health` | `lambda/fetch_health/lambda_function.py` | `aiops-lambda-role` |
-
-Runtime: **Python 3.12** | Timeout: **30 seconds**
-
----
-
-## Step 3: Update the Prometheus URL
-
-Both `fetch_metrics` and `fetch_health` lambdas query Prometheus directly. Update the `PROMETHEUS_URL` placeholder in each file before uploading the code.
-
-In `lambda/fetch_metrics/lambda_function.py`:
-```python
-PROMETHEUS_URL = "http://<YOUR_PROMETHEUS_ELB_URL>:9090"
+```env
+AWS_REGION=us-east-1
+LOG_GROUP_NAME=/eks/boutique/pods
+PROMETHEUS_URL=https://pro.simsoliver.com
+DEFAULT_CLUSTER=eks-cluster
+DEFAULT_NAMESPACE=boutique
 ```
 
-In `lambda/fetch_health/lambda_function.py`:
-```python
-PROMETHEUS_URL = "http://<YOUR_PROMETHEUS_ELB_URL>:9090"
+Then run the deploy script. It zips each file in `lambda/` and creates (or updates) the 3 functions:
+
+| Function Name | Source |
+|---------------|--------|
+| `aiops-fetch-logs` | `lambda/fetch_logs/` |
+| `aiops-fetch-metrics` | `lambda/fetch_metrics/` |
+| `aiops-fetch-health` | `lambda/fetch_health/` |
+
+**Windows (PowerShell):**
+```powershell
+.\lambdas\deploy-lambdas.ps1
 ```
 
-To get the Prometheus ELB URL, expose Prometheus as a LoadBalancer service:
-
+**Linux / macOS:**
 ```bash
-kubectl patch svc kube-prometheus-stack-prometheus -n monitoring \
-  -p '{"spec": {"type": "LoadBalancer"}}'
-
-kubectl get svc kube-prometheus-stack-prometheus -n monitoring
-# Copy the EXTERNAL-IP value — that is your ELB URL
+chmod +x lambdas/deploy-lambdas.sh
+./lambdas/deploy-lambdas.sh
 ```
+
+Re-run this script any time you change Lambda code or `config.env`.
 
 ---
 
-## Step 4: Deploy the Bedrock Agent
+## Step 3: Deploy the Bedrock Agent
 
 Run the deploy script. It will:
 - Verify the Lambda functions and IAM role exist
@@ -96,15 +96,20 @@ Run the deploy script. It will:
 - Prepare the agent
 
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+chmod +x bedrock/deploy.sh
+./bedrock/deploy.sh
+```
+
+On Windows:
+```powershell
+.\bedrock\deploy.ps1
 ```
 
 At the end, the script prints your **Agent ID** — keep it for the next step.
 
 ---
 
-## Step 5: (Optional) Generate Sample Data
+## Step 4: (Optional) Generate Sample Data
 
 Populate CloudWatch Logs with realistic error scenarios to test Kira:
 
@@ -116,7 +121,7 @@ This writes 100 realistic log events (503 errors, OOM kills, connection pool exh
 
 ---
 
-## Step 6: Run the Streamlit UI
+## Step 5: Run the Streamlit UI
 
 ```bash
 cp .env.example .env
@@ -151,20 +156,34 @@ Open **http://localhost:8501** in your browser.
 ```
 aiops-assistant/
 ├── app.py                  # Streamlit chat UI
-├── deploy.sh               # Bedrock Agent deployment script
-├── setup-iam.sh            # IAM roles and policies setup
-├── requirements.txt        # Python dependencies
-├── .env.example            # Environment variable template
+├── config.env              # Lambda settings (Prometheus URL, log group, etc.)
+├── verify-lambdas.txt      # Commands to verify Lambda deploy
+├── iam/
+│   ├── setup-iam.ps1       # Create IAM roles (Windows)
+│   ├── setup-iam.sh        # Create IAM roles (Linux/macOS)
+│   └── destroy-iam.ps1     # Remove IAM roles
+├── lambdas/
+│   ├── deploy-lambdas.ps1  # Deploy the 3 Lambda functions (Windows)
+│   ├── deploy-lambdas.sh   # Deploy the 3 Lambda functions (Linux/macOS)
+│   └── verify-lambdas.ps1  # Verify Lambda deploy
+├── bedrock/
+│   ├── deploy.ps1          # Bedrock Agent deployment (Windows)
+│   ├── deploy.sh           # Bedrock Agent deployment (Linux/macOS)
+│   ├── verify-deploy.ps1   # Verify Bedrock Agent deploy
+│   ├── invoke-test.py      # Live agent test (used by verify-deploy.ps1)
+│   └── destroy-deploy.ps1  # Remove Bedrock Agent
+├── requirements.txt
+├── .env.example
 ├── lambda/
-│   ├── fetch_logs/         # CloudWatch Logs query
-│   ├── fetch_metrics/      # Prometheus metrics query
-│   └── fetch_health/       # EKS cluster health check
+│   ├── fetch_logs/
+│   ├── fetch_metrics/
+│   └── fetch_health/
 ├── schemas/
-│   ├── fetch_logs.json     # OpenAPI schema for fetch_logs
-│   ├── fetch_metrics.json  # OpenAPI schema for fetch_metrics
-│   └── fetch_health.json   # OpenAPI schema for fetch_health
+│   ├── fetch_logs.json
+│   ├── fetch_metrics.json
+│   └── fetch_health.json
 └── scripts/
-    └── generate_sample_data.py  # Seed CloudWatch with test errors
+    └── generate_sample_data.py
 ```
 
 ---
@@ -182,7 +201,7 @@ aiops-assistant/
 ## Potential Issues
 
 ### Bedrock model access not enabled
-The deploy script will fail at agent creation if model access hasn't been requested. Go to **AWS Console → Bedrock → Model access** and enable access for the model used in `deploy.sh` before running the script.
+The deploy script will fail at agent creation if model access hasn't been requested. Go to **AWS Console → Bedrock → Model access** and enable access for the model used in `bedrock/deploy.sh` before running the script.
 
 ### Prometheus URL unreachable from Lambda
 `fetch_metrics` and `fetch_health` make outbound HTTP calls to the Prometheus ELB. If Lambda is deployed inside a VPC without a NAT gateway or internet gateway route, these calls will time out. Either:
@@ -190,7 +209,7 @@ The deploy script will fail at agent creation if model access hasn't been reques
 - Ensure the VPC has a route to the internet and the Prometheus ELB security group allows inbound on port 9090.
 
 ### Agent stuck in PREPARING state
-After running `deploy.sh`, the agent status shows `PREPARING`. This is normal and takes 30–60 seconds. If it stays in this state, check the Bedrock console for validation errors — usually caused by a malformed OpenAPI schema or a Lambda ARN that doesn't exist.
+After running `bedrock/deploy.sh`, the agent status shows `PREPARING`. This is normal and takes 30–60 seconds. If it stays in this state, check the Bedrock console for validation errors — usually caused by a malformed OpenAPI schema or a Lambda ARN that doesn't exist.
 
 ### Streamlit shows "NOT CONFIGURED"
 The app requires `BEDROCK_AGENT_ID` and `BEDROCK_AGENT_ALIAS_ID` to be set in `.env`. If you started Streamlit before populating `.env`, stop it and restart — `load_dotenv()` only reads the file at startup.
@@ -211,7 +230,7 @@ kubectl get pods -n amazon-cloudwatch
 If the log group doesn't exist yet, run the sample data generator first (Step 5) which creates `/app/production`.
 
 ### fetch_health uses wrong cluster name
-The Lambda defaults to cluster name `eks-cluster`. If your cluster has a different name, update `DEFAULT_CLUSTER` in `lambda/fetch_health/lambda_function.py` before uploading the function code.
+Update `DEFAULT_CLUSTER` in `config.env` and re-run `lambdas\deploy-lambdas.ps1` (or `lambdas/deploy-lambdas.sh`).
 
 ### Lambda execution role missing permissions
 If `fetch_health` returns an access denied error on `eks:DescribeCluster`, the inline policy may not have propagated yet (IAM can take ~10–15 seconds). Wait and retry. If it persists, verify the inline policy is attached:

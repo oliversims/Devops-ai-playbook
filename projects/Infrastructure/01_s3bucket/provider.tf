@@ -1,4 +1,7 @@
-# Bootstrap: S3 bucket for remote state (apply first with local state).
+# =============================================================================
+# 01_s3bucket — Terraform remote state backend (bootstrap stack)
+# =============================================================================
+# Apply FIRST with local state. Copy tfstate_bucket_id into other stacks' provider.tf.
 
 terraform {
   required_version = ">= 1.5"

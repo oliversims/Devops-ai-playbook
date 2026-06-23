@@ -1,0 +1,29 @@
+# HTTPS ingress for Kira UI (Streamlit on port 8501)
+# Hostname comes from KIRA_HOST in ingress.env via kustomization replacements
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kira
+  namespace: aiops
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: boutique-platform
+    alb.ingress.kubernetes.io/group.order: "4"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: placeholder
+    external-dns.alpha.kubernetes.io/hostname: placeholder
+spec:
+  ingressClassName: alb
+  rules:
+    - host: placeholder
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kira-ui
+                port:
+                  number: 8501

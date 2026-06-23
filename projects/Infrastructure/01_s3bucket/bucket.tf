@@ -1,4 +1,4 @@
-# S3 bucket for Terraform state: unique name, versioning, encryption, block public access.
+# S3 bucket for Terraform remote state — versioning, encryption, block public access.
 
 resource "random_string" "suffix" {
   length  = 6

@@ -55,7 +55,7 @@ kubectl rollout restart deployment -n boutique auth gateway order-service orders
 # Step 6: Apply boutique HTTPS ingress
 # -----------------------------------------------------------------------------
 Write-Host "Step 6: Applying boutique HTTPS ingress..."
-kubectl apply -k "$PSScriptRoot\boutique-ingress"
+kubectl apply -k "$PSScriptRoot\02_boutique-ingress"
 
 # -----------------------------------------------------------------------------
 # Step 7: Show status

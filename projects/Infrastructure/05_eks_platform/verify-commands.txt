@@ -1,0 +1,28 @@
+# Verify 05_argocd — run from projects/Infrastructure/05_argocd
+
+aws eks update-kubeconfig --region us-east-1 --name eks-cluster
+
+# Helm releases (all STATUS: deployed)
+helm list -n kube-system
+helm list -n argocd
+helm list -n monitoring
+
+# ALB controller
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+# external-dns
+kubectl get pods -n kube-system -l app.kubernetes.io/name=external-dns
+
+# ArgoCD
+kubectl get pods -n argocd
+
+# Monitoring
+kubectl get pods -n monitoring
+
+# Fluent Bit (pod logs → CloudWatch /eks/boutique/pods)
+helm list -n amazon-cloudwatch
+kubectl get pods -n amazon-cloudwatch
+
+# Credentials
+terraform output -raw argocd_password
+terraform output -raw grafana_password

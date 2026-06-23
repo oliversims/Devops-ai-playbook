@@ -4,7 +4,6 @@ import os
 from datetime import datetime, timedelta
 
 DEFAULT_LOG_GROUP = os.environ.get("LOG_GROUP_NAME", "/eks/boutique/pods")
-DEFAULT_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 
 def lambda_handler(event, context):
@@ -15,7 +14,7 @@ def lambda_handler(event, context):
     filter_pattern = params.get("filter_pattern", "ERROR")
     log_group_name = params.get("log_group_name", DEFAULT_LOG_GROUP)
     hours_back = int(params.get("hours_back", "1"))
-    region = params.get("region", DEFAULT_REGION)
+    region = params.get("region", os.environ["AWS_REGION"])
 
     cloudwatch_logs = boto3.client("logs", region_name=region)
 

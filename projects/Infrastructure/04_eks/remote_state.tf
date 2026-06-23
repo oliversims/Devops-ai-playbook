@@ -1,4 +1,4 @@
-# Reads subnet IDs from the 02_vpc stack in S3 (apply 02_vpc before this stack).
+# Reads VPC outputs from the 02_vpc stack (subnet_ids for the cluster and node group).
 
 data "terraform_remote_state" "vpc" {
   backend = "s3"

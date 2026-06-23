@@ -1,6 +1,7 @@
-# VPC stack — remote state in S3 (unique key per stack).
-# If you change the backend key/bucket, use: terraform init -migrate-state
-# Do NOT use -reconfigure if you want to keep existing state.
+# =============================================================================
+# 02_vpc — networking, DNS, and TLS
+# =============================================================================
+# Apply order: 01_s3bucket → 02_vpc → 04_eks
 
 terraform {
   required_version = ">= 1.5"

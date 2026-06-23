@@ -1,4 +1,7 @@
-# ECR stack — remote state in S3 (independent of VPC/EKS).
+# =============================================================================
+# 03_ecr — container image repositories
+# =============================================================================
+# Independent of VPC/EKS. Can apply in parallel with 02_vpc or 04_eks.
 
 terraform {
   required_version = ">= 1.5"

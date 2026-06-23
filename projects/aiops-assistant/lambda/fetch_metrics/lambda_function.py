@@ -1,11 +1,11 @@
 import json
+import os
 import urllib.request
 import urllib.parse
 from datetime import datetime
 
-PROMETHEUS_URL = "http://<YOUR_PROMETHEUS_ELB_URL>:9090"
-
-DEFAULT_NAMESPACE = "boutique"
+PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "https://pro.simsoliver.com")
+DEFAULT_NAMESPACE = os.environ.get("DEFAULT_NAMESPACE", "boutique")
 
 METRIC_QUERIES = {
     "pod_cpu_utilization": 'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}", container!=""}}[5m])) by (pod)',

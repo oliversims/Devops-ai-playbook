@@ -1,0 +1,14 @@
+# Deploy gitops/01_ingress — run from repo root
+# Hosts: argo, graf, pro (.simsoliver.com)
+# Kira: gitops/02_aiops
+
+# 1. Apply
+kubectl apply -k gitops/01_ingress
+
+# 2. Verify
+kubectl get ingress -A
+
+# 3. Delete
+kubectl delete -k gitops/01_ingress
+
+

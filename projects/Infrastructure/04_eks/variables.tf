@@ -17,36 +17,36 @@ variable "cluster_name" {
 }
 
 variable "node_group_name" {
-  type        = string
   description = "Name of the managed node group"
+  type        = string
 }
 
 variable "instance_types" {
-  type        = list(string)
   description = "EC2 instance types for worker nodes"
+  type        = list(string)
 }
 
 variable "capacity_type" {
-  type        = string
   description = "ON_DEMAND or SPOT"
+  type        = string
 }
 
 variable "desired_size" {
-  type        = number
   description = "Target number of worker nodes"
+  type        = number
 }
 
 variable "min_size" {
+  description = "Minimum number of worker nodes (cluster autoscaler floor)"
   type        = number
-  description = "Minimum number of worker nodes"
 }
 
 variable "max_size" {
+  description = "Maximum number of worker nodes (cluster autoscaler ceiling)"
   type        = number
-  description = "Maximum number of worker nodes"
 }
 
 variable "disk_size" {
-  type        = number
   description = "Root volume size (GiB) on each worker node"
+  type        = number
 }

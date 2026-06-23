@@ -1,0 +1,164 @@
+# Full Teardown Plan — DevOps + AIOps Series
+# Run in this order (reverse of how things were built).
+# Apps and Kubernetes resources first, Terraform last.
+#
+# Prerequisite (once per session, before any kubectl step):
+#   aws eks update-kubeconfig --region us-east-1 --name eks-cluster
+#
+# All paths below are relative to the repo root unless noted.
+
+
+================================================================================
+PHASE 1 — Kira UI on EKS
+================================================================================
+
+Step 1.1 — Remove Kira ingress (HTTPS at kira.simsoliver.com)
+  kubectl delete -k gitops/03_aiops
+
+Step 1.2 — Remove Kira UI deployment (namespace aiops)
+  kubectl delete -f projects/aiops-assistant/04_ui/k8s.yml
+
+Step 1.3 — Remove IRSA role for the UI pod
+  cd projects/aiops-assistant/01_iam
+  .\destroy-irsa.ps1
+
+Verify:
+  kubectl get ingress -n aiops
+  kubectl get pods -n aiops
+  (both should return nothing)
+
+
+================================================================================
+PHASE 2 — AIOps backend (Bedrock + Lambdas + IAM)
+================================================================================
+
+Step 2.1 — Remove Bedrock Agent (must run before Lambdas)
+  cd projects/aiops-assistant/03_bedrock
+  .\destroy-deploy.ps1
+
+Step 2.2 — Remove Lambda functions
+  cd projects/aiops-assistant/02_lambdas
+  .\destroy-lambdas.ps1
+
+Step 2.3 — Remove IAM roles (lambda + bedrock agent roles)
+  cd projects/aiops-assistant/01_iam
+  .\destroy-iam.ps1
+
+Verify:
+  aws bedrock-agent list-agents --region us-east-1
+  aws lambda list-functions --region us-east-1 --query "Functions[?starts_with(FunctionName,'aiops-')]"
+  aws iam get-role --role-name aiops-lambda-role          (should fail)
+  aws iam get-role --role-name aiops-bedrock-agent-role   (should fail)
+
+
+================================================================================
+PHASE 3 — Boutique app on EKS (GitOps)
+================================================================================
+
+Step 3.1 — Remove boutique app (ArgoCD app, namespace, ingress, monitoring)
+  cd gitops
+  .\destroy-argo-cd.ps1
+
+  Keeps ArgoCD, Prometheus, Grafana, and the EKS cluster running.
+
+Verify:
+  kubectl get namespace boutique
+  kubectl get application boutique -n argocd
+  (both should return nothing)
+
+
+================================================================================
+PHASE 4 — Platform ingress (ArgoCD / Grafana / Prometheus URLs)
+================================================================================
+
+Step 4.1 — Remove shared HTTPS ingress (argo, graf, pro .simsoliver.com)
+  kubectl delete -k gitops/01_ingress
+
+Verify:
+  kubectl get ingress -A
+
+
+================================================================================
+PHASE 5 — Terraform (reverse apply order)
+================================================================================
+
+Run terraform destroy in each stack folder. Wait for each to finish before
+the next. Typical total time: 20–40 minutes.
+
+Step 5.1 — EKS platform (ALB controller, external-dns, ArgoCD, monitoring, Fluent Bit)
+  cd projects/Infrastructure/05_eks_platform
+  terraform destroy
+
+Step 5.2 — EKS cluster + node groups
+  cd projects/Infrastructure/04_eks
+  terraform destroy
+
+Step 5.3 — ECR repositories
+  cd projects/Infrastructure/03_ecr
+  terraform destroy
+
+  Note: ECR repos must be empty. If destroy fails, delete images first:
+    aws ecr list-images --repository-name <repo> --region us-east-1
+    aws ecr batch-delete-image --repository-name <repo> --region us-east-1 --image-ids ...
+
+Step 5.4 — VPC, subnets, Route 53 records, ACM cert
+  cd projects/Infrastructure/02_vpc
+
+  Do the "Before VPC destroy" section at the bottom of this file first.
+  Then run: terraform destroy
+
+Step 5.5 — S3 state bucket (optional — only if you want zero AWS footprint)
+  cd projects/Infrastructure/01_s3bucket
+  terraform destroy
+
+  Warning: destroys Terraform remote state for all stacks. Only do this when
+  you are sure every other stack is already destroyed.
+
+
+================================================================================
+QUICK REFERENCE — DESTROY ORDER
+================================================================================
+
+  1.  kubectl delete -k gitops/02_aiops
+  2.  kubectl delete -f projects/aiops-assistant/04_ui/k8s.yml
+  3.  projects/aiops-assistant/01_iam/destroy-irsa.ps1
+  4.  projects/aiops-assistant/03_bedrock/destroy-deploy.ps1
+  5.  projects/aiops-assistant/02_lambdas/destroy-lambdas.ps1
+  6.  projects/aiops-assistant/01_iam/destroy-iam.ps1
+  7.  gitops/destroy-argo-cd.ps1
+  8.  kubectl delete -k gitops/01_ingress
+  9.  terraform destroy  →  05_eks_platform
+ 10.  terraform destroy  →  04_eks
+ 11.  terraform destroy  →  03_ecr
+ 12.  terraform destroy  →  02_vpc
+ 13.  terraform destroy  →  01_s3bucket  (optional, last)
+
+
+================================================================================
+BEFORE VPC DESTROY (Step 5.4) — run in PowerShell
+================================================================================
+
+1. CHECK — anything still in the VPC?
+
+cd projects/Infrastructure/02_vpc
+$VPC = terraform output -raw vpc_id
+aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VPC" --region us-east-1 --output table
+
+  No rows = go to step 4
+  Rows with eni-... = go to step 2
+
+
+2. REMOVE — use ids from step 1 (run one line per resource)
+
+aws ec2 delete-network-interface --network-interface-id eni-XXXXXXXXX --region us-east-1
+aws ec2 delete-security-group --group-id sg-XXXXXXXXX --region us-east-1
+
+
+3. CHECK AGAIN — same as step 1 (must show no rows before destroy)
+
+aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VPC" --region us-east-1 --output table
+
+
+4. DESTROY VPC
+
+terraform destroy

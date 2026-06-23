@@ -1,4 +1,8 @@
-# EKS stack — remote state in S3; reads VPC subnet IDs via terraform_remote_state.
+# =============================================================================
+# 04_eks — EKS cluster, worker nodes, EBS CSI
+# =============================================================================
+# Remote state: reads subnet IDs from 02_vpc.
+# Apply order: 01_s3bucket → 02_vpc → 04_eks
 
 terraform {
   required_version = ">= 1.5"
@@ -7,6 +11,10 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
     }
   }
 
