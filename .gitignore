@@ -34,3 +34,7 @@ Thumbs.db
 
 # Environment variables
 .env
+
+# Local ops runbooks (not for the repo)
+projects/TEARDOWN.txt
+projects/RESTORATION.txt
